@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.request
 import zipfile
+import shutil
 from os.path import join, split
 from pathlib import Path
 from shutil import which
@@ -19,7 +20,6 @@ from urllib.error import HTTPError, URLError
 MANIFEST_LOCATION = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 CLIENT = "client"
 SERVER = "server"
-
 
 def get_minecraft_path():
     if sys.platform.startswith('linux'):
@@ -228,7 +228,8 @@ def get_mappings(version, side, quiet):
         sys.exit(-1)
 
 
-def remap(version, side, quiet):
+def remap(version, side, quiet, mapping_file):
+    mapping_file = mapping_file or f'mappings/{version}/{side}.tsrg'
     if not quiet:
         print('=== Remapping jar using SpecialSource ====')
     t = time.time()
@@ -241,7 +242,8 @@ def remap(version, side, quiet):
             if r != "y":
                 sys.exit(-1)
             path = path_temp
-    mapp = Path(f'mappings/{version}/{side}.tsrg')
+    mapp = Path(mapping_file)
+    print(mapp, mapping_file, mapp.is_file())
     specialsource = Path('./lib/SpecialSource-1.8.6.jar')
     if path.exists() and mapp.exists() and specialsource.exists() and path.is_file() and mapp.is_file() and specialsource.is_file():
         path = path.resolve()
@@ -260,7 +262,7 @@ def remap(version, side, quiet):
             print('Done in %.1fs' % t)
     else:
         if not quiet:
-            print(f'ERROR: Missing files: ./lib/SpecialSource-1.8.6.jar or mappings/{version}/{side}.tsrg or versions/{version}/{side}.jar')
+            print(f'ERROR: Missing files: ./lib/SpecialSource-1.8.6.jar or {mapping_file} or versions/{version}/{side}.jar')
             input("Aborting, press anything to exit")
         sys.exit(-1)
 
@@ -296,7 +298,7 @@ def decompile_fern_flower(decompiled_version, version, side, quiet, force):
             z.extractall(path=f'./src/{decompiled_version}/{side}')
         t = time.time() - t
         if not quiet:
-            print('Done in %.1fs (file was decompressed in {decompiled_version}/{side})' % t)
+            print(f'Done in %.1fs (file was decompressed in {decompiled_version}/{side})' % t)
             print(f'Remove Extra Jar file? (y/n): ')
             response = input() or "y"
             if response == 'y':
@@ -532,12 +534,14 @@ def main():
     parser.add_argument('--decompile', '-dec', nargs='?', const=True, type=str2bool, dest='decompile', default=True,
                         required="--nauto" in sys.argv or "-na" in sys.argv, help=f"Decompile (only if auto off)")
     parser.add_argument('--quiet', '-q', dest='quiet', action='store_true', default=False, help=f"Doesnt display the messages")
+    parser.add_argument('--mappings', '-m', type=str, dest='mappings', default=False, help=f"Custom mapping file")
+
     use_flags = False
     args = parser.parse_args()
     if args.mcversion:
         use_flags = True
     if not args.quiet:
-        print("Decompiling using official mojang mappings (Default option are in uppercase, you can just enter)")
+        print("Decompiling using %s mappings (Default option are in uppercase, you can just enter)" % ("official mojang" if not args.mappings else "provided"))
     if use_flags:
         removal_bool = args.clean
     else:
@@ -575,9 +579,10 @@ def main():
         r = r.lower() == "y"
     if r:
         get_mappings(version, side, args.quiet)
-        convert_mappings(version, side, args.quiet)
+        if not args.mappings:
+            convert_mappings(version, side, args.quiet)
         get_version_jar(version, side, args.quiet)
-        remap(version, side, args.quiet)
+        remap(version, side, args.quiet, args.mappings)
         if decompiler.lower() == "cfr":
             decompile_cfr(decompiled_version, version, side, args.quiet)
         else:
@@ -618,7 +623,10 @@ def main():
         r = input('Remap? (y/n): ') or "y"
         r = r.lower() == "y"
     if r:
-        remap(version, side, args.quiet)
+        remap(version, side, args.quiet, args.mappings)
+    else:
+        # needed for next step
+        shutil.copyfile(f'versions/{version}/{side}.jar', f'./src/{version}-{side}-temp.jar')
 
     if use_flags:
         r = args.delete_dep
