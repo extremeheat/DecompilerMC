@@ -249,13 +249,15 @@ def remap(version, side, quiet, mapping_file):
         path = path.resolve()
         mapp = mapp.resolve()
         specialsource = specialsource.resolve()
-        subprocess.run(['java',
-                        '-jar', specialsource.__str__(),
-                        '--in-jar', path.__str__(),
-                        '--out-jar', f'./src/{version}-{side}-temp.jar',
-                        '--srg-in', mapp.__str__(),
-                        "--kill-lvt"  # kill snowmen
-                        ], check=True, capture_output=quiet)
+        args = [
+            'java',
+            '-jar', specialsource.__str__(),
+            '--in-jar', path.__str__(),
+            '--out-jar', f'./src/{version}-{side}-temp.jar',
+            '--srg-in', mapp.__str__(),
+            "--kill-lvt"  # kill snowmen
+        ]
+        subprocess.run(args, check=True, capture_output=quiet)
         if not quiet:
             print(f'- New -> {version}-{side}-temp.jar')
             t = time.time() - t
@@ -286,6 +288,14 @@ def decompile_fern_flower(decompiled_version, version, side, quiet, force):
                         # '-ren=1',  # rename ambiguous activated
                         '-lit=1',  # output numeric literals
                         '-asc=1',  # encode non-ASCII characters in string and character
+                        # '-din=1', # decompile inner classes
+                        # '-rbr=1', # hide bridge methods
+                        # '-rsy=1', # hide synthetic class members
+                        # '-iec=1', 
+                        # '-iib=1', # IGNORE_INVALID_BYTECODE
+                        # '-jvn=1', # (Forge) USE_JAD_VARNAMING
+                        # '-isl=0', # (Forge) no inline lambdas
+                        # '-cfg=fflibs.txt',
                         '-log=WARN',
                         path.__str__(), f'./src/{decompiled_version}/{side}'
                         ], check=True, capture_output=quiet)
